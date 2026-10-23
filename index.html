@@ -8,7 +8,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>SV CLUB TEST | 운영본 복제 테스트</title>
+<title>SV CLUB TEST | 클럽헤드 추적 R5</title>
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#07140f;color:#f4f7f5;font-family:Arial,"Noto Sans KR",sans-serif}
@@ -2780,5 +2780,30 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 </script>
-<script id="clubTestIsolationLabel">(()=>{const label=document.createElement('div');label.textContent='SV CLUB TEST · 운영본과 분리된 실험 버전';Object.assign(label.style,{position:'fixed',top:'0',left:'0',right:'0',zIndex:'99999',background:'#133d2d',color:'#b8ff83',font:'bold 12px Arial',textAlign:'center',padding:'3px',pointerEvents:'none'});document.body.appendChild(label)})();</script></body>
+<script id="clubTestIsolationLabel">(()=>{const label=document.createElement('div');label.textContent='SV CLUB TEST · 운영본과 분리된 실험 버전';Object.assign(label.style,{position:'fixed',top:'0',left:'0',right:'0',zIndex:'99999',background:'#133d2d',color:'#b8ff83',font:'bold 12px Arial',textAlign:'center',padding:'3px',pointerEvents:'none'});document.body.appendChild(label)})();</script>
+<!-- TEST ONLY: manually seeded clubhead pattern tracking; not validated for high-speed swings -->
+<style id="svClubTrackR5Style">#svClubTrackOverlay{position:absolute;inset:0;width:100%;height:100%;z-index:7;touch-action:manipulation;pointer-events:none}#svClubTrackOverlay.active{pointer-events:auto}#svClubTrackStatus{font:11px Arial,sans-serif;color:#b9d8ca;margin:3px 0;text-align:center}</style>
+<script id="svClubTrackR5">
+(()=>{
+const init=()=>{
+const stage=document.getElementById('mainVideoStage'),base=document.getElementById('replayCanvas'),video=document.getElementById('replay'),toggle=document.getElementById('svTrailToggle');if(!stage||!base||!video||!toggle)return;
+const overlay=document.createElement('canvas');overlay.id='svClubTrackOverlay';stage.appendChild(overlay);
+const info=document.createElement('div');info.id='svClubTrackStatus';info.textContent='궤적 ON 후 리플레이를 일시정지하고 클럽헤드를 터치하세요.';stage.insertAdjacentElement('afterend',info);
+const cx=overlay.getContext('2d'),small=document.createElement('canvas');small.width=320;small.height=240;const sc=small.getContext('2d',{willReadFrequently:true});
+let seed=null,pts=[],last=0,prevTime=-1,prevSrc='',miss=0,prevImage=null;const S=9,HALF=4;
+function reset(msg){seed=null;pts=[];miss=0;prevImage=null;if(msg)info.textContent=msg;}
+function snapshot(){sc.drawImage(base,0,0,320,240);return sc.getImageData(0,0,320,240).data;}
+function patch(data,x,y){const out=[];for(let j=-HALF;j<=HALF;j++)for(let i=-HALF;i<=HALF;i++){const p=((y+j)*320+x+i)*4;out.push(data[p],data[p+1],data[p+2]);}return out;}
+function diff(data,x,y,ref){let d=0,k=0;for(let j=-HALF;j<=HALF;j++)for(let i=-HALF;i<=HALF;i++){const p=((y+j)*320+x+i)*4;d+=Math.abs(data[p]-ref[k++])+Math.abs(data[p+1]-ref[k++])+Math.abs(data[p+2]-ref[k++]);}return d/(S*S*3);}
+function resize(){const b=stage.getBoundingClientRect();const d=Math.min(devicePixelRatio||1,2),w=Math.round(b.width*d),h=Math.round(b.height*d);if(overlay.width!==w||overlay.height!==h){overlay.width=w;overlay.height=h;}cx.setTransform(d,0,0,d,0,0);return {w:b.width,h:b.height};}
+overlay.addEventListener('pointerdown',e=>{if(!window.svClubTrailVisible||video.readyState<2)return;const b=overlay.getBoundingClientRect(),x=Math.round((e.clientX-b.left)/b.width*320),y=Math.round((e.clientY-b.top)/b.height*240);if(x<HALF+1||x>=320-HALF-1||y<HALF+1||y>=240-HALF-1)return;try{const d=snapshot();seed={x,y,ref:patch(d,x,y)};pts=[{x,y,t:video.currentTime}];miss=0;info.textContent='클럽헤드 지정 완료 · 리플레이를 재생하세요.';}catch(err){reset('영상 픽셀 접근 실패: '+err.message)}});
+toggle.addEventListener('click',()=>{overlay.classList.toggle('active',!!window.svClubTrailVisible);if(window.svClubTrailVisible)info.textContent='리플레이 화면의 클럽헤드를 터치해 추적을 시작하세요.';else info.textContent='궤적 OFF';});
+function tick(now){requestAnimationFrame(tick);if(now-last<90)return;last=now;const z=resize();cx.clearRect(0,0,z.w,z.h);const src=video.currentSrc||'';if(src!==prevSrc){prevSrc=src;reset('새 영상 · 궤적 ON 후 클럽헤드를 다시 지정하세요.')}const t=video.currentTime;if(prevTime>=0&&t<prevTime-.15)reset('리플레이 반복 · 이전 궤적 초기화');const moved=Math.abs(t-prevTime)>.001;prevTime=t;
+if(seed&&moved&&video.readyState>=2){try{const d=snapshot();let best=Infinity,bx=seed.x,by=seed.y;for(let y=Math.max(HALF,seed.y-22);y<=Math.min(239-HALF,seed.y+22);y+=2)for(let x=Math.max(HALF,seed.x-22);x<=Math.min(319-HALF,seed.x+22);x+=2){const v=diff(d,x,y,seed.ref);if(v<best){best=v;bx=x;by=y;}}if(best<30){seed.x=bx;seed.y=by;pts.push({x:bx,y:by,t});if(pts.length>150)pts.shift();miss=0;}else if(++miss>=3){reset('추적 실패 · 잘못된 궤적을 방지하기 위해 중단했습니다. 다시 터치하세요.')}}catch(err){reset('추적 오류: '+err.message)}}
+if(!window.svClubTrailVisible)return;const scaleX=z.w/320,scaleY=z.h/240;cx.lineWidth=1.5;cx.lineJoin='round';for(let i=1;i<pts.length;i++){cx.strokeStyle=i<pts.length/2?'#4bc9ff':'#ff7766';cx.beginPath();cx.moveTo(pts[i-1].x*scaleX,pts[i-1].y*scaleY);cx.lineTo(pts[i].x*scaleX,pts[i].y*scaleY);cx.stroke();}if(seed){cx.strokeStyle='#baff77';cx.beginPath();cx.arc(seed.x*scaleX,seed.y*scaleY,8,0,Math.PI*2);cx.stroke();}}
+requestAnimationFrame(tick);
+};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+})();
+</script>
+</body>
 </html>
